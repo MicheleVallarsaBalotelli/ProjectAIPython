@@ -8,42 +8,49 @@ from pathlib import Path
 
 
 class ModelLSTM:
+    # Gestisce il modello LSTM
 
-    # gestisce il modello LSTM per predizione di prezzi Bitcoin
     def __init__(self, forma_ingresso: tuple, nome_modello: str = 'bitcoin_modello.h5'):
         self.forma_ingresso = forma_ingresso
         self.nome_modello = nome_modello
         self.modello = None
-        self.cronologia = None  # Contiene i dati di training (loss, mae, ecc)
+        self.cronologia = None
 
+    # modello LSTM a 3 layer (50 unità ciascuno) con Dropout 0.2, seguito da 2 layer Dense.
     def costruisci_modello(self) -> None:
-
-        # Costruzione architettura del modello LSTM
         print("🤖 Costruzione modello LSTM...\n")
 
         self.modello = Sequential([
             Input(shape=self.forma_ingresso),
 
-            # primo layer LSTM
-            LSTM(units=50, return_sequences=False),
-            Dropout(0.2),  # Disattiva casualmente il 20% dei neuroni
+            LSTM(units=50, return_sequences=True),
+            Dropout(0.2),
 
-            # Layer denso finale per output singolo
-            Dense(units=1)  # Output: un singolo prezzo
+            LSTM(units=50, return_sequences=True),
+            Dropout(0.2),
+
+            LSTM(units=50),
+            Dropout(0.2),
+
+            Dense(units=25),
+            Dense(units=1)
         ])
 
-        self.modello.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
+        self.modello.compile(
+            optimizer='adam',
+            loss='mean_squared_error',
+            metrics=['mae']
+        )
         print("✅ Modello costruito\n")
 
+
+    # Addestra il modello sui dati di training con validazione in tempo reale
     def addestra(self, x_train: np.ndarray, y_train: np.ndarray,
                  x_validazione: np.ndarray, y_validazione: np.ndarray,
                  epoche: int = 100, dimensione_batch: int = 32) -> bool:
-
-        # addestramento modello LSTM sui dati di training
         try:
             print("⏳ Addestramento in corso...\n")
 
-            # Early stopping: ferma se val_loss non migliora per 10 epoche consecutive
             interruzione_precoce = EarlyStopping(
                 monitor='val_loss',
                 patience=10,
@@ -67,30 +74,27 @@ class ModelLSTM:
             print(f"❌ ERRORE nel training: {str(errore)}")
             return False
 
+
+    # Valida il modello su dati sconosciuti e calcola le metriche RMSE, MAE, MSE
     def valida(self, x_validazione: np.ndarray, y_validazione: np.ndarray,
                gestore_dati: 'GestoreDati') -> dict:
-
-        # valida il modello su dati non visti durante il training
         try:
             print("📊 Validazione modello...\n")
 
-            # previsioni sui dati di validazione
             previsioni = self.modello.predict(x_validazione, verbose=0)
 
-            # denormalizza i prezzi predetti e reali
             prezzi_predetti = gestore_dati.denormalizza_prezzi(previsioni.flatten())
-            prezzi_reali = gestore_dati.denormalizza_prezzi(y_validazione.flatten())  # !!! MODIFICATO (Aggiunto .flatten()) !!!
+            prezzi_reali = gestore_dati.denormalizza_prezzi(y_validazione)
 
-            # metriche di errore
             mse = mean_squared_error(prezzi_reali, prezzi_predetti)
             mae = mean_absolute_error(prezzi_reali, prezzi_predetti)
-            rmse = np.sqrt(mse)  # Root Mean Square Error
+            rmse = np.sqrt(mse)
 
             metriche = {'RMSE': rmse, 'MAE': mae, 'MSE': mse}
 
             print(f"--- METRICHE DI VALIDAZIONE ---")
-            print(f"RMSE: ${rmse:.2f}")  # Errore medio (sensibile ai grandi errori)
-            print(f"MAE:  ${mae:.2f}\n")  # Errore medio assoluto
+            print(f"RMSE: ${rmse:.2f}")
+            print(f"MAE:  ${mae:.2f}\n")
 
             return metriche
 
@@ -98,9 +102,8 @@ class ModelLSTM:
             print(f"❌ ERRORE nella validazione: {str(errore)}")
             return {}
 
-    def predici_futuro(self, ultima_sequenza: np.ndarray, giorni: int = 7) -> np.ndarray:
 
-        # previsioni per i prossimi 'giorni' giorni.
+    def predici_futuro(self, ultima_sequenza: np.ndarray, giorni: int = 7) -> np.ndarray:
         try:
             print(f"🔮 Generazione previsioni ({giorni} giorni)...\n")
 
@@ -112,7 +115,6 @@ class ModelLSTM:
                 previsioni.append(previsione[0, 0])
 
                 nuova_riga = np.copy(batch_attuale[0, -1, :])
-
                 nuova_riga[0] = previsione[0, 0]
 
                 batch_attuale = np.append(
@@ -127,8 +129,8 @@ class ModelLSTM:
             print(f"❌ ERRORE nella predizione: {str(errore)}")
             return np.array([])
 
+    # Salva il modello addestrato su disco in formato .h5 per poterlo riutilizzare senza riaddestrare
     def salva_modello(self) -> bool:
-        # salva il modello su disco per riutilizzi futuri
         try:
             self.modello.save(self.nome_modello)
             print(f"✅ Modello salvato: {self.nome_modello}\n")
@@ -137,6 +139,7 @@ class ModelLSTM:
             print(f"❌ ERRORE nel salvataggio: {str(errore)}")
             return False
 
+    # Carica modello precedentemente salvato da disco per evitare di riaddestrare il modello
     def carica_modello(self) -> bool:
         try:
             if not Path(self.nome_modello).exists():

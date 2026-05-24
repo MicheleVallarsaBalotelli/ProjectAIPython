@@ -2,12 +2,12 @@ import matplotlib.pyplot as plt
 
 
 class Visualizzatore:
-    """Gestisce la creazione e visualizzazione dei grafici"""
+
+    """Gestisce la creazione e visualizzazione dei grafici di training e previsioni"""
+    # Mostra due grafici affiancati: Loss (training vs validation) e MAE durante l'addestramento del modello.
 
     @staticmethod
     def mostra_cronologia_training(cronologia, titolo: str = "Cronologia Training") -> None:
-
-        # mostra i grafici di Loss e MAE durante l'addestramento
         try:
             fig, assi = plt.subplots(1, 2, figsize=(15, 5))
 
@@ -37,32 +37,27 @@ class Visualizzatore:
         except Exception as errore:
             print(f"❌ ERRORE nel plotting: {str(errore)}")
 
+
+    # Mostra un grafico a linea con i prezzi predetti dei prossimi giorni
     @staticmethod
     def mostra_previsioni(prezzi: list, titolo: str = "Previsioni Bitcoin") -> None:
-
-        # mostra il grafico delle previsioni future.
         try:
             fig, asse = plt.subplots(figsize=(12, 6))
 
-            # range giorni
             giorni = range(1, len(prezzi) + 1)
 
-            # grafico principale
             asse.plot(giorni, prezzi, marker='o', linestyle='-', color='green',
                       linewidth=3, markersize=10, label='Previsioni')
 
             asse.fill_between(giorni, prezzi, alpha=0.2, color='green')
 
-            # titoli e etichette
             asse.set_title(titolo, fontsize=14, fontweight='bold')
             asse.set_xlabel('Giorni', fontsize=12)
             asse.set_ylabel('Prezzo ($)', fontsize=12)
             asse.grid(True, alpha=0.3)
             asse.legend(fontsize=11)
 
-            # etichette dei prezzi sopra ogni punto
             for i, prezzo in enumerate(prezzi, 1):
-                # Posiziona il testo 1% più alto rispetto al valore massimo
                 offset = (max(prezzi) * 0.01)
                 asse.text(i, prezzo + offset, f'${prezzo:.0f}',
                           ha='center', fontsize=10, fontweight='bold')
